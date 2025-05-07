@@ -1,4 +1,3 @@
-
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -309,4 +308,4 @@ with tab3:
 
 # Footer
 st.markdown("---")
-st.caption("Note: This tool is for educational and entertainment purposes only. Gambling involves risk and can be addictive.
+st.caption("Note: This tool is for educational and entertainment purp
