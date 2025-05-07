@@ -1,14 +1,39 @@
-import streamlit as st 
+import streamlit as st
 import numpy as np
 import pandas as pd
 from datetime import datetime
 
 # --- App Configuration ---
-st.set_page_config(page_title="AI Sports Betting Value Tool", layout="wide")
+st.set_page_config(
+    page_title="AI Sports Betting Value Estimator",
+    layout="wide",
+    page_icon="🤖",
+)
 
-# --- Title Section ---
-st.title("🤖 AI Sports Betting Value Estimator")
-st.caption("Smart value bet identification using probability models and bankroll optimization.")
+# --- Utility Functions ---
+def american_to_decimal(odds):
+    """Converts American odds to Decimal odds."""
+    if odds > 0:
+        return (odds / 100) + 1
+    elif odds < 0:
+        return (100 / abs(odds)) + 1
+    else:
+        raise ValueError("Odds cannot be zero.")
+
+def calculate_ev(decimal_odds, win_probability):
+    """Calculates Expected Value (EV) and related metrics."""
+    ev = (decimal_odds * (win_probability / 100)) - 1
+    ev_percent = ev * 100
+    implied_prob = (1 / decimal_odds) * 100
+    edge = win_probability - implied_prob
+    return ev, ev_percent, implied_prob, edge
+
+def calculate_kelly(win_probability, decimal_odds, bankroll, kelly_fraction):
+    """Calculates Kelly Criterion recommended bet size."""
+    kelly_bet = ((win_probability / 100) * decimal_odds - 1) / (decimal_odds - 1)
+    kelly_bet = max(0, kelly_bet)  # Kelly bet cannot be negative
+    recommended_bet = kelly_bet * kelly_fraction * bankroll
+    return kelly_bet, recommended_bet
 
 # --- Sidebar Settings ---
 with st.sidebar:
@@ -19,7 +44,7 @@ with st.sidebar:
     st.markdown("---")
     st.info("Adjust settings to tailor bet sizing to your risk tolerance.")
 
-# --- Main Columns ---
+# --- Main Layout ---
 col1, col2 = st.columns([1, 1])
 
 with col1:
@@ -28,10 +53,11 @@ with col1:
 
     if odds_format == "American":
         book_odds = st.number_input("Bookmaker Odds (e.g. +150 or -110)", value=150)
-        if book_odds > 0:
-            decimal_odds = (book_odds / 100) + 1
-        else:
-            decimal_odds = (100 / abs(book_odds)) + 1
+        try:
+            decimal_odds = american_to_decimal(book_odds)
+        except ValueError as e:
+            st.error(f"⚠️ {e}")
+            decimal_odds = None
     else:
         decimal_odds = st.number_input("Decimal Odds", value=2.50, min_value=1.01, step=0.01)
 
@@ -41,37 +67,32 @@ with col1:
 
 with col2:
     st.subheader("📈 Bet Analysis")
-    try:
-        ev = (decimal_odds * (win_probability / 100)) - 1
-        ev_percent = ev * 100
-        implied_prob = (1 / decimal_odds) * 100
-        edge = win_probability - implied_prob
+    if decimal_odds:
+        try:
+            ev, ev_percent, implied_prob, edge = calculate_ev(decimal_odds, win_probability)
 
-        if ev > 0:
-            st.success(f"✅ +EV Bet Detected! Expected Return: {ev_percent:.2f}%")
-        else:
-            st.error(f"❌ -EV Bet: Expected Return: {ev_percent:.2f}%")
+            if ev > 0:
+                st.success(f"✅ +EV Bet Detected! Expected Return: {ev_percent:.2f}%")
+            else:
+                st.error(f"❌ -EV Bet: Expected Return: {ev_percent:.2f}%")
 
-        st.metric("Your Probability", f"{win_probability:.1f}%")
-        st.metric("Implied Probability", f"{implied_prob:.1f}%")
-        st.metric("Edge", f"{edge:.1f}%")
+            st.metric("Your Probability", f"{win_probability:.1f}%")
+            st.metric("Implied Probability", f"{implied_prob:.1f}%")
+            st.metric("Edge", f"{edge:.1f}%")
 
-        if use_kelly:
-            kelly_bet = ((win_probability/100 * decimal_odds) - 1) / (decimal_odds - 1)
-            kelly_bet = max(0, kelly_bet)
-            recommended_bet = kelly_bet * kelly_fraction * bankroll
+            if use_kelly:
+                kelly_bet, recommended_bet = calculate_kelly(win_probability, decimal_odds, bankroll, kelly_fraction)
+                st.subheader("🧠 Kelly Recommendation")
+                st.metric("Kelly %", f"{kelly_bet * 100:.2f}%")
+                st.metric("Adjusted Kelly", f"{kelly_bet * kelly_fraction * 100:.2f}%")
+                st.metric("Recommended Bet", f"${recommended_bet:.2f}")
+                potential_profit = recommended_bet * (decimal_odds - 1)
+                st.metric("Potential Profit", f"${potential_profit:.2f}")
 
-            st.subheader("🧠 Kelly Recommendation")
-            st.metric("Kelly %", f"{kelly_bet*100:.2f}%")
-            st.metric("Adjusted Kelly", f"{kelly_bet*kelly_fraction*100:.2f}%")
-            st.metric("Recommended Bet", f"${recommended_bet:.2f}")
-            potential_profit = recommended_bet * (decimal_odds - 1)
-            st.metric("Potential Profit", f"${potential_profit:.2f}")
+        except Exception as e:
+            st.error(f"⚠️ Error in calculations: {e}")
 
-    except Exception as e:
-        st.error(f"⚠️ Error: {e}")
-
-# --- Tabs for More Features ---
+# --- Tabs for Additional Features ---
 tab1, tab2 = st.tabs(["📚 Bet History", "🎓 Learning Center"])
 
 with tab1:
@@ -80,7 +101,7 @@ with tab1:
         try:
             try:
                 bets_df = pd.read_csv("bet_history.csv")
-            except:
+            except FileNotFoundError:
                 bets_df = pd.DataFrame(columns=["Date", "Event", "Odds", "Probability", "EV%", "Stake"])
 
             new_bet = pd.DataFrame({
@@ -104,7 +125,7 @@ with tab1:
             st.dataframe(bets_df)
         else:
             st.info("No bets recorded yet.")
-    except:
+    except FileNotFoundError:
         st.info("No bet history file found.")
 
 with tab2:
