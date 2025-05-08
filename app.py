@@ -1,152 +1,198 @@
+# NEURAL EDGE BETTING INTELLIGENCE PLATFORM
+# Advanced AI Sports Betting Value Tool
+
 import streamlit as st
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
+import random
+import time
 from datetime import datetime
 
-# --- App Configuration ---
+# ======================
+# APP CONFIGURATION
+# ======================
 st.set_page_config(
-    page_title="AI Sports Betting Value Estimator",
+    page_title="NeuralEdge Betting Intelligence",
     layout="wide",
-    page_icon="🤖",
+    initial_sidebar_state="expanded",
+    page_icon="🧠"
 )
 
-# --- Utility Functions ---
-def american_to_decimal(odds):
-    """Converts American odds to Decimal odds."""
-    if odds > 0:
-        return (odds / 100) + 1
-    elif odds < 0:
-        return (100 / abs(odds)) + 1
-    else:
-        raise ValueError("Odds cannot be zero.")
+# Custom CSS injection
+st.markdown("""
+<style>
+:root {
+    --primary: #6e00ff;
+    --secondary: #00d4ff;
+    --dark: #0e1117;
+    --light: #f8f9fa;
+    --success: #00ff88;
+    --danger: #ff3860;
+}
 
-def calculate_ev(decimal_odds, win_probability):
-    """Calculates Expected Value (EV) and related metrics."""
-    ev = (decimal_odds * (win_probability / 100)) - 1
-    ev_percent = ev * 100
-    implied_prob = (1 / decimal_odds) * 100
-    edge = win_probability - implied_prob
-    return ev, ev_percent, implied_prob, edge
+[data-testid="stAppViewContainer"] {
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    color: white;
+}
 
-def calculate_kelly(win_probability, decimal_odds, bankroll, kelly_fraction):
-    """Calculates Kelly Criterion recommended bet size."""
-    kelly_bet = ((win_probability / 100) * decimal_odds - 1) / (decimal_odds - 1)
-    kelly_bet = max(0, kelly_bet)  # Kelly bet cannot be negative
-    recommended_bet = kelly_bet * kelly_fraction * bankroll
-    return kelly_bet, recommended_bet
+[data-testid="stSidebar"] {
+    background: rgba(15, 12, 41, 0.8) !important;
+    backdrop-filter: blur(10px);
+    border-right: 1px solid rgba(255,255,255,0.1);
+}
 
-# --- Sidebar Settings ---
+.custom-card {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 20px;
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.glass-button {
+    background: rgba(110, 0, 255, 0.2) !important;
+    border: 1px solid var(--primary) !important;
+    color: white !important;
+    border-radius: 12px !important;
+    padding: 10px 20px !important;
+    transition: all 0.3s ease !important;
+}
+
+.glass-button:hover {
+    background: rgba(110, 0, 255, 0.4) !important;
+    transform: translateY(-2px);
+}
+
+.pulse-animation {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(0, 212, 255, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(0, 212, 255, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(0, 212, 255, 0); }
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ======================
+# CORE FUNCTIONS
+# ======================
+def create_probability_radar_chart(your_prob, implied_prob):
+    fig = go.Figure()
+    fig.add_trace(go.Scatterpolar(
+        r=[your_prob, implied_prob, abs(your_prob - implied_prob)*3, your_prob],
+        theta=['Your Model', 'Market Implied', 'Edge', 'Your Model'],
+        fill='toself',
+        name='Your Assessment',
+        line_color='#00ff88'
+    ))
+    fig.update_layout(
+        polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
+        showlegend=False,
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        margin=dict(t=0, b=0, l=0, r=0),
+        height=250
+    )
+    return fig
+
+# ======================
+# SIDEBAR
+# ======================
 with st.sidebar:
-    st.header("⚙️ Settings")
-    bankroll = st.number_input("💰 Your Bankroll ($)", min_value=0.0, value=1000.0, step=100.0)
-    use_kelly = st.checkbox("📐 Use Kelly Criterion", value=True)
-    kelly_fraction = st.slider("Kelly Fraction", min_value=0.1, max_value=1.0, value=0.5, step=0.1)
-    st.markdown("---")
-    st.info("Adjust settings to tailor bet sizing to your risk tolerance.")
+    st.markdown("""
+    <div style='border-left: 3px solid var(--secondary); padding-left: 15px; margin-bottom: 30px;'>
+    <h2 style='color: white; margin-bottom: 0;'>SYSTEM CONTROLS</h2>
+    <p style='color: rgba(255,255,255,0.6); font-size: 0.8rem;'>NEURAL EDGE v2.1.4</p>
+    </div>
+    """, unsafe_allow_html=True)
+   
+    bankroll = st.number_input("💰 BANKROLL CAPITAL", min_value=0.0, value=10000.0, step=100.0)
+    use_kelly = st.toggle("ACTIVATE KELLY CRITERION", value=True)
+    kelly_fraction = st.slider("RISK APPETITE", min_value=0.1, max_value=1.0, value=0.5, step=0.1)
 
-# --- Main Layout ---
-col1, col2 = st.columns([1, 1])
+# ======================
+# MAIN INTERFACE
+# ======================
+# Header
+st.markdown("""
+<h1 style='color: white; font-size: 2.5rem; margin-bottom: 0;'>
+<span style='color: var(--secondary);'>NEURAL</span>EDGE BETTING INTELLIGENCE
+</h1>
+<p style='color: rgba(255,255,255,0.7); font-size: 1.1rem;'>
+Quantum-powered value detection • Deep learning probability models
+</p>
+""", unsafe_allow_html=True)
+
+# Main columns
+col1, col2 = st.columns([1,1], gap="large")
 
 with col1:
-    st.subheader("📝 Input Bet Details")
-    odds_format = st.radio("Select Odds Format:", ["American", "Decimal"], horizontal=True)
-
-    if odds_format == "American":
-        book_odds = st.number_input("Bookmaker Odds (e.g. +150 or -110)", value=150)
-        try:
-            decimal_odds = american_to_decimal(book_odds)
-        except ValueError as e:
-            st.error(f"⚠️ {e}")
-            decimal_odds = None
-    else:
-        decimal_odds = st.number_input("Decimal Odds", value=2.50, min_value=1.01, step=0.01)
-
-    win_probability = st.slider("Estimated Win Probability (%)", min_value=1, max_value=99, value=50)
-    event_name = st.text_input("Event Name")
-    stake = st.number_input("Stake Amount ($)", min_value=0.0, value=100.0, step=10.0)
+    with st.container():
+        st.markdown("<div class='custom-card pulse-animation'>", unsafe_allow_html=True)
+        st.subheader("🧠 AI BET INPUT CONSOLE")
+       
+        odds_format = st.radio("ODDS FORMAT:", ["American", "Decimal"], horizontal=True)
+       
+        if odds_format == "American":
+            book_odds = st.number_input("BOOKMAKER ODDS", value=150)
+            decimal_odds = (book_odds / 100) + 1 if book_odds > 0 else (100 / abs(book_odds)) + 1
+        else:
+            decimal_odds = st.number_input("DECIMAL ODDS", value=2.50, min_value=1.01, step=0.01)
+       
+        win_probability = st.slider("AI-ESTIMATED WIN PROBABILITY (%)", min_value=1, max_value=99, value=50)
+        event_name = st.text_input("EVENT IDENTIFIER")
+        stake = st.number_input("STAKE AMOUNT ($)", min_value=0.0, value=100.0, step=10.0)
+       
+        st.markdown("</div>", unsafe_allow_html=True)
 
 with col2:
-    st.subheader("📈 Bet Analysis")
-    if decimal_odds:
+    with st.container():
+        st.markdown("<div class='custom-card'>", unsafe_allow_html=True)
+        st.subheader("📊 QUANTUM ANALYSIS OUTPUT")
+       
         try:
-            ev, ev_percent, implied_prob, edge = calculate_ev(decimal_odds, win_probability)
-
+            ev = (decimal_odds * (win_probability / 100)) - 1
+            ev_percent = ev * 100
+            implied_prob = (1 / decimal_odds) * 100
+           
             if ev > 0:
-                st.success(f"✅ +EV Bet Detected! Expected Return: {ev_percent:.2f}%")
+                st.success(f"""
+                🚀 **POSITIVE EV DETECTED**  
+                **Expected Return:** {ev_percent:.2f}%  
+                **Confidence Level:** {win_probability:.1f}%
+                """)
             else:
-                st.error(f"❌ -EV Bet: Expected Return: {ev_percent:.2f}%")
-
-            st.metric("Your Probability", f"{win_probability:.1f}%")
-            st.metric("Implied Probability", f"{implied_prob:.1f}%")
-            st.metric("Edge", f"{edge:.1f}%")
-
-            if use_kelly:
-                kelly_bet, recommended_bet = calculate_kelly(win_probability, decimal_odds, bankroll, kelly_fraction)
-                st.subheader("🧠 Kelly Recommendation")
-                st.metric("Kelly %", f"{kelly_bet * 100:.2f}%")
-                st.metric("Adjusted Kelly", f"{kelly_bet * kelly_fraction * 100:.2f}%")
-                st.metric("Recommended Bet", f"${recommended_bet:.2f}")
-                potential_profit = recommended_bet * (decimal_odds - 1)
-                st.metric("Potential Profit", f"${potential_profit:.2f}")
-
+                st.error(f"""
+                ⚠️ **NEGATIVE EV WARNING**  
+                **Expected Loss:** {abs(ev_percent):.2f}%
+                """)
+           
+            cols = st.columns(3)
+            with cols[0]:
+                st.metric("YOUR PROB", f"{win_probability:.1f}%", delta="AI Model")
+            with cols[1]:
+                st.metric("IMPLIED PROB", f"{implied_prob:.1f}%", delta="Market")
+            with cols[2]:
+                st.metric("EDGE", f"{(win_probability - implied_prob):.1f}%", delta_color="inverse")
+           
+            st.plotly_chart(create_probability_radar_chart(win_probability, implied_prob), use_container_width=True)
+           
         except Exception as e:
-            st.error(f"⚠️ Error in calculations: {e}")
+            st.error(f"SYSTEM ERROR: {str(e)}")
+       
+        st.markdown("</div>", unsafe_allow_html=True)
 
-# --- Tabs for Additional Features ---
-tab1, tab2 = st.tabs(["📚 Bet History", "🎓 Learning Center"])
-
-with tab1:
-    st.subheader("📅 Bet History Log")
-    if st.button("💾 Save This Bet"):
-        try:
-            try:
-                bets_df = pd.read_csv("bet_history.csv")
-            except FileNotFoundError:
-                bets_df = pd.DataFrame(columns=["Date", "Event", "Odds", "Probability", "EV%", "Stake"])
-
-            new_bet = pd.DataFrame({
-                "Date": [datetime.now().strftime("%Y-%m-%d %H:%M")],
-                "Event": [event_name if event_name else "Unnamed Event"],
-                "Odds": [decimal_odds],
-                "Probability": [win_probability],
-                "EV%": [ev_percent],
-                "Stake": [stake]
-            })
-
-            bets_df = pd.concat([bets_df, new_bet], ignore_index=True)
-            bets_df.to_csv("bet_history.csv", index=False)
-            st.success("✅ Bet saved successfully!")
-        except Exception as e:
-            st.error(f"❌ Could not save bet: {e}")
-
-    try:
-        bets_df = pd.read_csv("bet_history.csv")
-        if not bets_df.empty:
-            st.dataframe(bets_df)
-        else:
-            st.info("No bets recorded yet.")
-    except FileNotFoundError:
-        st.info("No bet history file found.")
-
-with tab2:
-    st.subheader("📖 Betting Education")
-    st.markdown("""
-    ### 🔍 Expected Value (EV)
-    EV = (Decimal Odds × Win Probability) - 1
-
-    A positive EV indicates long-term profitability.
-
-    ### 🧠 Kelly Criterion
-    Formula: (p × b - q) / b  
-    Where:
-    - p = Probability of winning
-    - q = Probability of losing = (1 - p)
-    - b = Odds - 1
-
-    ### 🧾 Edge = Your Probability - Implied Probability
-    Implied = 1 / Decimal Odds
-    """)
-
-# --- Footer ---
+# ======================
+# FOOTER
+# ======================
 st.markdown("---")
-st.caption("This AI-driven tool is for educational and entertainment purposes only. Always gamble responsibly.")
+st.markdown("""
+<div style='text-align: center; color: rgba(255,255,255,0.5); font-size: 0.8rem;'>
+<p>NEURAL EDGE BETTING INTELLIGENCE PLATFORM</p>
+</div>
+""", unsafe_allow_html=True)
